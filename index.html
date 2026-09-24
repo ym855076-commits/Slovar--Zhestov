@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Изучаем жесты — Игра Мемори</title>
+  <style>
+    :root {
+      --bg-color: #f0f8ff;
+      --card-back: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+      --card-front: #ffffff;
+      --border-matched: #2ecc71;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Roboto, sans-serif;
+      background-color: var(--bg-color);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 15px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    h1 {
+      color: #2c3e50;
+      font-size: 1.8rem;
+      margin-bottom: 5px;
+    }
+
+    p {
+      color: #7f8c8d;
+      font-size: 1rem;
+    }
+
+    .stats {
+      margin: 15px 0;
+      font-size: 1.1rem;
+      font-weight: bold;
+      color: #34495e;
+    }
+
+    /* Игровое поле */
+    .grid-container {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      width: 100%;
+      max-width: 480px;
+      perspective: 1000px;
+    }
+
+    /* Карточка с 3D анимацией */
+    .card {
+      aspect-ratio: 1 / 1;
+      position: relative;
+      transform-style: preserve-3d;
+      transition: transform 0.5s ease;
+      cursor: pointer;
+      border-radius: 16px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+
+    .card.flipped {
+      transform: rotateY(180deg);
+    }
+
+    .card-face {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      backface-visibility: hidden;
+      border-radius: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 8px;
+      text-align: center;
+    }
+
+    /* Рубашка карточки */
+    .card-back {
+      background: var(--card-back);
+      color: white;
+      font-size: 2.2rem;
+    }
+
+    /* Лицевая сторона карточки */
+    .card-front {
+      background: var(--card-front);
+      transform: rotateY(180deg);
+      border: 3px solid #e0e0e0;
+    }
+
+    .card.matched .card-front {
+      border-color: var(--border-matched);
+      background-color: #e8f8f5;
+    }
+
+    .card img {
+      width: 70%;
+      height: 70%;
+      object-fit: contain;
+      border-radius: 8px;
+    }
+
+    .card-label {
+      font-size: 0.9rem;
+      font-weight: bold;
+      color: #2c3e50;
+      margin-top: 4px;
+    }
+
+    /* Сообщение о победе */
+    #win-modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.6);
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .modal-content {
+      background: white;
+      padding: 30px;
+      border-radius: 20px;
+      text-align: center;
+      max-width: 350px;
+      width: 100%;
+      animation: pop 0.3s ease;
+    }
+
+    @keyframes pop {
+      0% { transform: scale(0.8); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    .btn-reset {
+      background: #2ecc71;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      font-size: 1rem;
+      font-weight: bold;
+      border-radius: 25px;
+      cursor: pointer;
+      margin-top: 15px;
+      box-shadow: 0 4px 10px rgba(46,204,113,0.3);
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>🤟 Игра «Найди Пару»</h1>
+    <p>Сопоставь жест с предметом!</p>
+    <div class="stats">Найдено пар: <span id="pairs-count">0</span> / 4</div>
+  </header>
+
+  <div class="grid-container" id="grid"></div>
+
+  <!-- Модальное окно победы -->
+  <div id="win-modal">
+    <div class="modal-content">
+      <div style="font-size: 3rem;">🎉</div>
+      <h2 style="color: #2c3e50; margin: 10px 0;">Молодец!</h2>
+      <p>Ты отлично знаешь эти жесты!</p>
+      <button class="btn-reset" onclick="initGame()">Сиграть ещё раз</button>
+    </div>
+  </div>
+
+  <script>
+    // Набор данных: жесты и соответствия
+    // Вы можете легко заменить картинки на свои (GIF или PNG)
+    const items = [
+      {
+        id: 'cat',
+        gestureImg: 'https://img.icons8.com/emoji/96/cat-face-emoji.png',
+        targetImg: 'https://img.icons8.com/color/96/cat--v1.png',
+        labelRu: 'Кошка',
+        labelTk: 'Pişik'
+      },
+      {
+        id: 'dog',
+        gestureImg: 'https://img.icons8.com/emoji/96/dog-face-emoji.png',
+        targetImg: 'https://img.icons8.com/color/96/dog.png',
+        labelRu: 'Собака',
+        labelTk: 'Köpek'
+      },
+      {
+        id: 'apple',
+        gestureImg: 'https://img.icons8.com/emoji/96/red-apple-emoji.png',
+        targetImg: 'https://img.icons8.com/color/96/apple.png',
+        labelRu: 'Яблоко',
+        labelTk: 'Alma'
+      },
+      {
+        id: 'sun',
+        gestureImg: 'https://img.icons8.com/emoji/96/sun-emoji.png',
+        targetImg: 'https://img.icons8.com/color/96/sun--v1.png',
+        labelRu: 'Солнце',
+        labelTk: 'Günəş'
+      }
+    ];
+
+    let cardsData = [];
+    let flippedCards = [];
+    let matchedPairs = 0;
+
+    function initGame() {
+      matchedPairs = 0;
+      flippedCards = [];
+      document.getElementById('pairs-count').innerText = '0';
+      document.getElementById('win-modal').style.display = 'none';
+
+      // Подготовка карточек (по 2 на каждый предмет: 1 жест, 1 предмет)
+      cardsData = [];
+      items.forEach(item => {
+        cardsData.push({ id: item.id, img: item.gestureImg, label: item.labelTk + ' / ' + item.labelRu });
+        cardsData.push({ id: item.id, img: item.targetImg, label: item.labelTk + ' / ' + item.labelRu });
+      });
+
+      // Перемешивание
+      cardsData.sort(() => Math.random() - 0.5);
+
+      // Рендеринг
+      const grid = document.getElementById('grid');
+      grid.innerHTML = '';
+
+      cardsData.forEach((data, index) => {
+        const card = document.createElement('div');
+        card.classList.add('card');
+        card.dataset.id = data.id;
+        card.dataset.index = index;
+
+        card.innerHTML = `
+          <div class="card-face card-back">✋</div>
+          <div class="card-face card-front">
+            <img src="${data.img}" alt="card">
+            <div class="card-label">${data.label}</div>
+          </div>
+        `;
+
+        card.addEventListener('click', handleCardClick);
+        grid.appendChild(card);
+      });
+    }
+
+    function handleCardClick() {
+      if (flippedCards.length < 2 && !this.classList.contains('flipped') && !this.classList.contains('matched')) {
+        this.classList.add('flipped');
+        flippedCards.push(this);
+
+        if (flippedCards.length === 2) {
+          checkMatch();
+        }
+      }
+    }
+
+    function checkMatch() {
+      const [card1, card2] = flippedCards;
+
+      if (card1.dataset.id === card2.dataset.id) {
+        card1.classList.add('matched');
+        card2.classList.add('matched');
+        matchedPairs++;
+        document.getElementById('pairs-count').innerText = matchedPairs;
+        flippedCards = [];
+
+        if (matchedPairs === items.length) {
+          setTimeout(() => {
+            document.getElementById('win-modal').style.display = 'flex';
+          }, 600);
+        }
+      } else {
+        setTimeout(() => {
+          card1.classList.remove('flipped');
+          card2.classList.remove('flipped');
+          flippedCards = [];
+        }, 1000);
+      }
+    }
+
+    // Старт игры при загрузке
+    initGame();
+  </script>
+</body>
+</html>
